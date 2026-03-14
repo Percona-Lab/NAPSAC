@@ -190,6 +190,44 @@ NAPSAC stores profiles for two companion plugins from the Alpine toolkit:
 
 **In other clients:** Profiles are read-only. Training requires Cowork or Claude Code where plugins are supported.
 
+## Sharing and collaboration
+
+Because memory lives in Notion, sharing is a native operation — not an export/import step. This is NAPSAC's strongest differentiator from PACK, where memory lives in a private GitHub repo with all-or-nothing access.
+
+### Selective sharing
+
+Share specific memory pages with teammates without exposing your entire memory. Notion permissions are per-page, so you can make `projects/project-alpha` visible to your team while keeping `context/preferences` and `profiles/` private.
+
+### Team memory
+
+Create a shared memory root that multiple people's AI tools all read from. Project decisions, architecture context, customer notes, team conventions — everyone's Claude or ChatGPT loads the same shared context at session start. One person updates a decision, and the whole team's AI knows about it immediately.
+
+### Profile sharing
+
+Share your MYNAH writing style or BINER design profile with teammates. They duplicate it into their own memory, and their AI matches the same voice and design standards. Useful for teams that want consistent external communications or Notion page formatting.
+
+### Onboarding
+
+Duplicate a curated memory root for new team members. Day one, their AI already knows team conventions, project context, key contacts, and communication norms. No briefing document to maintain separately — the memory *is* the briefing.
+
+### Project handoffs
+
+When transferring project ownership, share or duplicate the project memory pages. The new owner's AI has full project context without a single meeting. The handoff is a Notion page share, not a knowledge transfer session.
+
+### Template memory
+
+Publish a "starter memory" template for your team or org. New users duplicate it and get a pre-populated structure with team defaults, then personalize from there. This scales onboarding without scaling meetings.
+
+### How it compares to PACK
+
+| | NAPSAC (Notion) | PACK (GitHub) |
+|---|---|---|
+| Share a single file | Share the Notion page | Give repo access (all or nothing) |
+| Team-wide context | Shared memory root | Not supported (single-user) |
+| Duplicate for onboarding | Notion duplicate | Clone repo + reconfigure |
+| Granular permissions | Per-page via Notion | Per-repo via GitHub |
+| Real-time collaboration | Native Notion | Not supported |
+
 ## PACK vs NAPSAC
 
 ### When to use NAPSAC (Notion-native memory)
@@ -232,13 +270,19 @@ NAPSAC stores profiles for two companion plugins from the Alpine toolkit:
 ```
 ├── .claude-plugin/
 │   └── plugin.json           # Plugin metadata
-└── skills/
-    └── napsac/
-        ├── SKILL.md           # Main skill spec (tool definitions, behavior)
-        └── references/
-            ├── page-structure.md     # Notion page layout conventions
-            ├── pack-compatibility.md # PACK tool mapping and migration
-            └── cross-tool-setup.md   # Per-tool connection guides
+├── .claude/
+│   └── settings.local.json   # Permission config for Claude Code
+├── skills/
+│   └── napsac/
+│       ├── SKILL.md           # Main skill spec (tool definitions, behavior)
+│       └── references/
+│           ├── page-structure.md     # Notion page layout conventions
+│           ├── pack-compatibility.md # PACK tool mapping and migration
+│           └── cross-tool-setup.md   # Per-tool connection guides
+├── CLAUDE.md                  # Plugin instructions for org-level install
+├── CONTRACTS.md               # Non-negotiable project invariants
+├── DESIGN.md                  # Architecture and design decisions
+└── README.md
 ```
 
 ## License
