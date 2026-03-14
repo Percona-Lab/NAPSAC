@@ -1,0 +1,8 @@
+{
+  "name": "napsac",
+  "version": "1.0.0",
+  "author": {"name": "Percona Lab"},
+  "description": "NAPSAC: Notion Agent Persistent Store for Accessible Context. Zero-config persistent AI memory backed by Notion. Works across Claude, ChatGPT, Cursor, and VS Code.",
+  "repository": "https://github.com/Percona-Lab/NAPSAC",
+  "license": "MIT"
+}
