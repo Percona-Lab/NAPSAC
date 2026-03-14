@@ -48,23 +48,27 @@ Memory is organized as Notion sub-pages under a root page you choose:
 
 ### In Claude Code or Cowork (plugin)
 
-1. Install the NAPSAC plugin
-2. Connect Notion in your settings
-3. Tell Claude: "Initialize my NAPSAC memory at [paste Notion page URL]"
-4. Done. Claude will use memory automatically from now on.
+1. Open Claude Code and prompt: `Install this plugin: https://github.com/Percona-Lab/NAPSAC`
+2. Connect Notion in Claude's connector settings (Settings > Connectors > Notion)
+3. Create a **private** Notion page to use as your memory root
+4. Tell Claude: "Initialize my NAPSAC memory at [paste Notion page URL]"
+5. Add the system prompt below to your project instructions
+6. Done. Claude will use memory automatically from now on.
+
+> **Privacy notice**: Your memory will accumulate sensitive context over time. Keep the root page private. Only share specific sub-pages intentionally.
 
 ### In Claude Desktop, Mobile, or Web (system prompt)
 
-1. Connect Notion in Claude settings
-2. Create a Notion page to use as your memory root
+1. Connect Notion in Claude's connector settings (Settings > Connectors > Notion)
+2. Create a **private** Notion page to use as your memory root
 3. Add the system prompt below to your project instructions
 4. Tell Claude: "Set up my memory on this Notion page: [URL]"
 
 ### In ChatGPT, Cursor, or VS Code (Notion MCP)
 
 1. Connect Notion MCP in your tool's settings
-2. Create a Notion page to use as your memory root
-3. Add the system prompt for Notion MCP users (see below)
+2. Create a **private** Notion page to use as your memory root
+3. Add the Notion MCP system prompt (see below)
 4. Start using memory commands
 
 ## Tool reference
@@ -120,57 +124,44 @@ Input:  { query: "project alpha status" }
 Output: { results: [{ path, topic, tags, snippet }] }
 ```
 
-## System prompts
+## System prompt
 
-### For Claude (all clients)
+Add this to your project instructions in any Claude client, or to your system prompt in ChatGPT/Cursor/VS Code. Replace `[MEMORY_ROOT_PAGE_URL]` with your actual Notion page URL.
 
 ```
 CRITICAL -- MANDATORY FIRST STEP: Before responding to ANY user message,
-you MUST attempt memory access in this exact order. Do NOT respond until
-you have tried.
+you MUST attempt memory access. Do NOT respond until you have tried.
 
-1. NAPSAC plugin (Cowork/Claude Code): Call memory_list first, then
-   memory_get on context/preferences.
-2. Notion fallback (mobile, web, or plugin unavailable): If NAPSAC tools
-   fail or are not available, fetch the memory index from Notion page
-   [MEMORY_ROOT_PAGE_ID]. Read specific files from linked sub-pages as needed.
-3. Native memory fallback (Notion also unavailable): ONLY if both NAPSAC
-   and Notion fail, fall back to Claude's built-in memory. State clearly
-   at the start of your response: "Working from native memory only --
-   context may be incomplete."
+1. Fetch the memory index from Notion page [MEMORY_ROOT_PAGE_URL]. Look
+   for the _index sub-page and read it.
+2. Read context/preferences from the linked sub-pages.
+3. If Notion is unavailable, fall back to Claude's built-in memory. State
+   clearly: "Working from native memory only -- context may be incomplete."
 
-Do NOT skip to native memory out of convenience. Do NOT respond before
-attempting steps 1 and 2. Try each level in order and move to the next
-ONLY on failure.
+Do NOT skip memory loading out of convenience. Try Notion first, always.
 
-You have access to persistent memory via NAPSAC (memory_list / memory_get /
-memory_update / memory_search).
-- Call memory_get with a file path to read specific context
-- Call memory_update with a file path and content to save information --
-  this is the user's personal memory and they decide what goes in it
-- Call memory_search with keywords to find information across all memory files
-- Each file is independent -- no need to merge with other files when updating
-When drafting any communication on my behalf, use memory_search to find
-MYNAH profile files. If present, match my writing style for the relevant context.
-When creating or formatting Notion pages, use memory_search to find NOTION
-Design Profile files. If present, apply my stored design preferences.
-```
-
-Replace `[MEMORY_ROOT_PAGE_ID]` with your actual Notion page URL.
-
-### For ChatGPT, Cursor, VS Code (Notion MCP)
-
-```
-You have access to persistent memory stored in Notion via NAPSAC.
-- At the start of every conversation, search Notion for the memory index
-  page and read it
-- To read specific context, follow the links in the index to the relevant
-  sub-page
+You have access to persistent memory stored as Notion sub-pages under the
+memory root.
+- At session start, read the _index page to see all available memory files
+- To read specific context, fetch the relevant sub-page by following links
+  in the index
 - To save information, update the relevant sub-page or create a new one
-  under the appropriate directory
+  under the appropriate directory -- this is the user's personal memory and
+  they decide what goes in it
 - To search memory, search across all sub-pages under the memory root
-- Each sub-page is an independent memory file — update them individually
+- Each sub-page is an independent memory file -- update them individually,
+  no need to merge
+
+When drafting any communication on my behalf, search memory for MYNAH
+profile files (under profiles/). If present, match my writing style for
+the relevant context (Slack DM, email, channel post, etc.).
+
+When creating or formatting Notion pages, search memory for BINER/Notion
+Design Profile files (under profiles/). If present, apply my stored design
+preferences instead of default formatting.
 ```
+
+This single prompt works across all clients — Claude (desktop, mobile, web), ChatGPT Pro, Cursor, and VS Code. The tools access Notion differently (native connector vs Notion MCP) but the memory structure and behavior are identical.
 
 ## Cross-tool compatibility
 
