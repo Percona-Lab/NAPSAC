@@ -46,33 +46,33 @@ Memory is organized as Notion sub-pages under a root page you choose:
 
 ## Quick start
 
-### 1. Create your memory root
+### 1. Set up Notion
 
-Create a **private** Notion page to use as your memory root. This is where all your memory files will live as sub-pages.
+1. Create a **private** Notion page to use as your memory root. This is where all your memory files will live as sub-pages.
+2. Connect your AI tool to Notion:
+   - **Claude (all clients):** Settings > Connectors > Notion
+   - **ChatGPT, Cursor, VS Code:** Connect Notion MCP in your tool's settings
 
 > **Privacy notice**: Your memory will accumulate sensitive context over time. Keep the root page private. Only share specific sub-pages intentionally.
 
-### 2. Add the system prompt
-
-Add the [system prompt](#system-prompt) below to your project instructions (Claude) or system prompt settings (ChatGPT, Cursor, VS Code). Replace `[MEMORY_ROOT_PAGE_URL]` with your Notion page URL.
-
-### 3. Connect your AI tool
+### 2. Connect your AI tool
 
 **Claude Code or Cowork (plugin):**
 
 1. Open Claude Code and prompt: `Install this plugin: https://github.com/Percona-Lab/NAPSAC`
-2. Connect Notion in Claude's connector settings (Settings > Connectors > Notion)
-3. Tell Claude: "Initialize my NAPSAC memory at [paste Notion page URL]"
+2. Tell Claude: "Initialize my NAPSAC memory at [paste Notion page URL]"
 
 **Claude Desktop, Mobile, or Web:**
 
-1. Connect Notion in Claude's connector settings (Settings > Connectors > Notion)
-2. Tell Claude: "Set up my memory on this Notion page: [URL]"
+1. Tell Claude: "Set up my memory on this Notion page: [URL]"
 
 **ChatGPT, Cursor, or VS Code:**
 
-1. Connect Notion MCP in your tool's settings
-2. Start using memory commands
+1. Start using memory commands
+
+### 3. Add the system prompt
+
+Add the [system prompt](#system-prompt) below to your project instructions (Claude) or system prompt settings (ChatGPT, Cursor, VS Code). Replace `[MEMORY_ROOT_PAGE_URL]` with your Notion page URL.
 
 ## Tool reference
 
