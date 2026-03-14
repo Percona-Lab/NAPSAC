@@ -192,7 +192,7 @@ NAPSAC stores profiles for two companion plugins from the Alpine toolkit:
 
 ## Sharing and collaboration
 
-Because memory lives in Notion, sharing is a native operation — not an export/import step. This is NAPSAC's strongest differentiator from PACK, where memory lives in a private GitHub repo with all-or-nothing access.
+Because memory lives in Notion, sharing is a native operation — not an export/import step. This is NAPSAC's strongest differentiator from PACK. PACK stores memory in a private GitHub repo (single-user, all-or-nothing access). PACK's optional Notion sync can mirror pages for read-only sharing, but it requires a Notion API token and additional setup that most users don't have. With NAPSAC, sharing works out of the box because Notion is the backend, not a sync target.
 
 ### Selective sharing
 
@@ -222,11 +222,12 @@ Publish a "starter memory" template for your team or org. New users duplicate it
 
 | | NAPSAC (Notion) | PACK (GitHub) |
 |---|---|---|
-| Share a single file | Share the Notion page | Give repo access (all or nothing) |
-| Team-wide context | Shared memory root | Not supported (single-user) |
-| Duplicate for onboarding | Notion duplicate | Clone repo + reconfigure |
+| Share a single file | Share the Notion page (read + write) | Repo access = all or nothing |
+| Team-wide context | Shared memory root | Single-user only |
+| Duplicate for onboarding | Notion duplicate — immediately usable | Clone repo + full PACK setup |
 | Granular permissions | Per-page via Notion | Per-repo via GitHub |
 | Real-time collaboration | Native Notion | Not supported |
+| Setup required for sharing | None — it's just Notion | Notion API token + sync config |
 
 ## PACK vs NAPSAC
 
