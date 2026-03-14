@@ -8,14 +8,14 @@ Leave the PACK at base camp. Grab the NAPSAC.
 
 ## What it does
 
-NAPSAC gives any AI tool persistent memory using Notion as the only storage backend. No GitHub repo, no MCP server, no API tokens, no config files. Connect Notion, point to a page, and start remembering.
+NAPSAC gives any AI tool persistent memory using Notion as the only storage backend. Install the plugin in Cowork or Claude Code for the most reliable experience — with validated naming, enforced structure, and guaranteed index regeneration. For other tools, a system prompt fallback provides the same memory access with best-effort consistency.
 
-Five tools, matching [PACK](https://github.com/Percona-Lab/PACK)'s signatures:
+Five operations, matching [PACK](https://github.com/Percona-Lab/PACK)'s signatures:
 
-- **`memory_init`** — Takes a Notion page URL. Sets it as the memory root. Creates an index and starter content.
+- **`memory_init`** — Takes a Notion page URL. Sets it as the memory root. Creates an index, conventions page, and starter content.
 - **`memory_list`** — Lists all memory files with paths, descriptions, and tags. Call at session start.
 - **`memory_get`** — Reads a specific memory file by path. Returns clean, structured content.
-- **`memory_update`** — Writes or creates a memory file. Auto-updates the index. Notion page history serves as version tracking.
+- **`memory_update`** — Writes or creates a memory file. Validates naming. Auto-updates the index. Notion page history serves as version tracking.
 - **`memory_search`** — Searches across all memory files by keywords. Returns matching excerpts with file paths.
 
 Part of the [Alpine toolkit](https://github.com/Percona-Lab) family alongside [PACK](https://github.com/Percona-Lab/PACK), [MYNAH](https://github.com/Percona-Lab/MYNAH), [BINER](https://github.com/Percona-Lab/BINER), and [IBEX](https://github.com/Percona-Lab/IBEX).
@@ -27,6 +27,7 @@ Memory is organized as Notion sub-pages under a root page you choose:
 ```
 [Memory Root Page]
 ├── _index (auto-managed)
+├── _conventions (naming/formatting rules)
 ├── context/
 │   ├── general
 │   └── preferences
@@ -46,33 +47,52 @@ Memory is organized as Notion sub-pages under a root page you choose:
 
 ## Quick start
 
-### 1. Set up Notion
+### Cowork / Claude Code (recommended)
 
-1. Create a **private** Notion page to use as your memory root. This is where all your memory files will live as sub-pages.
+The plugin is the most reliable way to use NAPSAC. It validates naming conventions, enforces page structure, and guarantees index regeneration after every write.
+
+**1. Install the plugin**
+
+Open Claude Code and prompt:
+
+```
+Install this plugin: https://github.com/Percona-Lab/NAPSAC
+```
+
+**2. Connect Notion**
+
+In Cowork: Settings > Connectors > Notion
+
+In Claude Code: Ensure Notion MCP tools are available.
+
+**3. Initialize your memory**
+
+Tell Claude: "Set up my memory on this Notion page: [paste your page URL]"
+
+The plugin will create `_index`, `_conventions`, and `context/general` under your root. Done.
+
+### Other AI tools (system prompt fallback)
+
+For Claude mobile/web, ChatGPT, Cursor, and VS Code, the system prompt approach provides the same memory access without the plugin's validation guardrails.
+
+**1. Set up Notion**
+
+1. Create a **private** Notion page to use as your memory root.
 2. Connect your AI tool to Notion:
    - **Claude (all clients):** Settings > Connectors > Notion
    - **ChatGPT, Cursor, VS Code:** Connect Notion MCP in your tool's settings
 
+**2. Initialize your memory**
+
+Tell your AI tool: "Set up my memory on this Notion page: [paste your page URL]"
+
+The AI will create `_index`, `_conventions`, and starter content under your root.
+
+**3. Add the system prompt**
+
+Add the [system prompt](#cross-tool-system-prompt-fallback) below to your project instructions. Replace `[MEMORY_ROOT_PAGE_URL]` with your Notion page URL.
+
 > **Privacy notice**: Your memory will accumulate sensitive context over time. Keep the root page private. Only share specific sub-pages intentionally.
-
-### 2. Connect your AI tool
-
-**Claude Code or Cowork (plugin):**
-
-1. Open Claude Code and prompt: `Install this plugin: https://github.com/Percona-Lab/NAPSAC`
-2. Tell Claude: "Initialize my NAPSAC memory at [paste Notion page URL]"
-
-**Claude Desktop, Mobile, or Web:**
-
-1. Tell Claude: "Set up my memory on this Notion page: [URL]"
-
-**ChatGPT, Cursor, or VS Code:**
-
-1. Start using memory commands
-
-### 3. Add the system prompt
-
-Add the [system prompt](#system-prompt) below to your project instructions (Claude) or system prompt settings (ChatGPT, Cursor, VS Code). Replace `[MEMORY_ROOT_PAGE_URL]` with your Notion page URL.
 
 ## Tool reference
 
@@ -85,7 +105,7 @@ Input:  { page: "https://notion.so/your-page-id" }
 Output: { root_page_id, status: "initialized" }
 ```
 
-Creates `_index` and `context/general` under your chosen page.
+Creates `_index`, `_conventions`, and `context/general` under your chosen page.
 
 ### memory_list
 
@@ -109,12 +129,18 @@ Omit `path` to get all files concatenated (v1 compat).
 
 ### memory_update
 
-Writes a memory file. Creates the file and directory if they don't exist. Auto-regenerates the index.
+Writes a memory file. Validates the path, creates the file and directory if they don't exist, and auto-regenerates the index.
 
 ```
 Input:  { path: "projects/alpha", content: "## Project Alpha\n\n- Status: active\n- Lead: Sarah" }
 Output: { path, page_id, index_updated: true }
 ```
+
+**Validation rules:**
+- Path must include a directory (`context/preferences`, not `preferences`)
+- No file extensions (`.md`, `.txt`)
+- No `_` prefix (reserved for system pages)
+- Lowercase with hyphens for word separation
 
 Content is converted to proper Notion blocks (headings, bullets, code blocks) — not raw markdown.
 
@@ -127,9 +153,25 @@ Input:  { query: "project alpha status" }
 Output: { results: [{ path, topic, tags, snippet }] }
 ```
 
-## System prompt
+## Why a plugin?
 
-Add this to your project instructions in any Claude client, or to your system prompt in ChatGPT/Cursor/VS Code. Replace `[MEMORY_ROOT_PAGE_URL]` with your actual Notion page URL.
+The system prompt approach works but is fragile:
+
+| Problem | System Prompt Only | Plugin |
+|---------|-------------------|--------|
+| Index regeneration | Depends on AI remembering | Guaranteed after every write |
+| Page naming | AI interprets conventions differently | Validated programmatically |
+| Path validation | Nothing stops `preferences` instead of `context/preferences` | Rejects malformed paths |
+| Error handling | Failed API calls disappear silently | Retries with backoff, clear errors |
+| `_conventions` safety | AI can accidentally edit it | Marked as system page, never modified |
+
+The plugin is the authoritative implementation. The system prompt is the best-effort fallback for tools where the plugin isn't available.
+
+## Cross-tool system prompt (fallback)
+
+For Claude mobile/web, ChatGPT, Cursor, and VS Code where the plugin isn't available. Replace `[MEMORY_ROOT_PAGE_URL]` with your actual Notion page URL.
+
+> For the most reliable experience, use the plugin in Cowork or Claude Code.
 
 ```
 CRITICAL -- MANDATORY FIRST STEP: Before responding to ANY user message,
@@ -137,8 +179,10 @@ you MUST attempt memory access. Do NOT respond until you have tried.
 
 1. Fetch the memory index from Notion page [MEMORY_ROOT_PAGE_URL]. Look
    for the _index sub-page and read it.
-2. Read context/preferences from the linked sub-pages.
-3. If Notion is unavailable, fall back to Claude's built-in memory. State
+2. Read the _conventions sub-page. Follow its rules for naming, formatting,
+   and structuring all memory pages.
+3. Read context/preferences from the linked sub-pages.
+4. If Notion is unavailable, fall back to Claude's built-in memory. State
    clearly: "Working from native memory only -- context may be incomplete."
 
 Do NOT skip memory loading out of convenience. Try Notion first, always.
@@ -146,11 +190,14 @@ Do NOT skip memory loading out of convenience. Try Notion first, always.
 You have access to persistent memory stored as Notion sub-pages under the
 memory root.
 - At session start, read the _index page to see all available memory files
+- ALWAYS read _conventions before writing any memory -- it defines naming,
+  structure, and format rules
 - To read specific context, fetch the relevant sub-page by following links
   in the index
 - To save information, update the relevant sub-page or create a new one
   under the appropriate directory -- this is the user's personal memory and
   they decide what goes in it
+- After every write, regenerate the _index page to reflect the current state
 - To search memory, search across all sub-pages under the memory root
 - Each sub-page is an independent memory file -- update them individually,
   no need to merge
@@ -164,19 +211,18 @@ Design Profile files (under profiles/). If present, apply my stored design
 preferences instead of default formatting.
 ```
 
-This single prompt works across all clients — Claude (desktop, mobile, web), ChatGPT Pro, Cursor, and VS Code. The tools access Notion differently (native connector vs Notion MCP) but the memory structure and behavior are identical.
-
 ## Cross-tool compatibility
 
-| Tool | Connection | Read | Write | Setup |
-|------|-----------|------|-------|-------|
-| Claude (all clients) | Native Notion | Yes | Yes | Minimal |
-| Claude Code / Cowork | Plugin + Notion | Yes | Yes | Minimal |
-| ChatGPT Pro | Notion MCP | Yes | Yes | Low |
-| Cursor | Notion MCP | Yes | Yes | Low |
-| VS Code | Notion MCP | Yes | Yes | Low |
-| Gemini | Public link / Docs export | Yes | No | Medium |
-| Open WebUI | Not supported | No | No | Use PACK |
+| Tool | Connection | Read | Write | Plugin | Setup |
+|------|-----------|------|-------|--------|-------|
+| Cowork | Plugin + Notion | Yes | Yes | Yes | Minimal |
+| Claude Code | Plugin + Notion | Yes | Yes | Yes | Minimal |
+| Claude (mobile, desktop, web) | Native Notion | Yes | Yes | No | Low |
+| ChatGPT Pro | Notion MCP | Yes | Yes | No | Low |
+| Cursor | Notion MCP | Yes | Yes | No | Low |
+| VS Code | Notion MCP | Yes | Yes | No | Low |
+| Gemini | Public link / Docs export | Yes | No | No | Medium |
+| Open WebUI | Not supported | No | No | No | Use PACK |
 
 ## MYNAH and BINER integration
 
@@ -189,6 +235,8 @@ NAPSAC stores profiles for two companion plugins from the Alpine toolkit:
 **In Cowork and Claude Code:** MYNAH and BINER plugins work alongside NAPSAC natively — they train profiles and store them in Notion memory.
 
 **In other clients:** Profiles are read-only. Training requires Cowork or Claude Code where plugins are supported.
+
+Profiles use the same format as PACK, so they're portable between the two systems.
 
 ## Sharing and collaboration
 
@@ -233,57 +281,52 @@ Publish a "starter memory" template for your team or org. New users duplicate it
 
 ### When to use NAPSAC (Notion-native memory)
 
-- You want persistent AI memory with zero setup
-- You use Claude and/or ChatGPT as your primary AI tools
-- You want to read and write memory from any device, including mobile
+- You want persistent AI memory with zero infrastructure
+- You primarily use Cowork, Claude, or ChatGPT
+- You want to read and write memory from any device including mobile
 - You want to share memory selectively with teammates
 - You don't need git history, CLI access, or commit-level auditability
 - You're not comfortable with terminal setup or managing API tokens
-- You want one memory that works across Claude, ChatGPT, Cursor, and VS Code via Notion MCP
 
 ### When to use PACK (GitHub-backed memory)
 
 - You want full git history with commit messages, diffs, and SHAs
 - You need CLI access to memory outside of AI sessions
 - You use Open WebUI, Windsurf, or other MCP clients without Notion connectors
-- You want token-efficient directory-based storage that stays flat as memory grows
 - You want complete control over storage, backup, and encryption
-- You're comfortable with terminal setup and managing a local MCP server
 - You need webhook-based sync to fan out to multiple targets
 
 ### When to use both
 
 - PACK as source of truth with git history and CLI
-- PACK's multi-page Notion sync enabled (`NOTION_SYNC_MODE=multi`) for mobile reads
-- NAPSAC's system prompt as the fallback for mobile and non-MCP clients
-- Both use the same file path conventions and page structure, so content is portable
+- PACK's Notion sync enabled for mobile reads
+- NAPSAC's system prompt as the fallback for non-MCP clients
+- Same file path conventions, so content is portable
 
 ### Migration paths
 
 **From NAPSAC to PACK:** Export Notion pages to markdown files, add YAML frontmatter, commit to a GitHub repo. A script for this is on the roadmap.
 
-**From PACK to NAPSAC:** PACK's Notion sync already creates the page structure. Just switch your system prompt to point at the Notion page instead of the MCP server.
+**From PACK to NAPSAC:** If PACK has Notion sync enabled, the page structure already exists. Switch your system prompt to point at the Notion page instead of the MCP server.
 
-**Running both:** PACK owns writes via GitHub. Notion pages are read-only mirrors. Don't write to Notion directly via NAPSAC if PACK sync is active — PACK will overwrite on next sync.
+**Running both:** PACK owns writes via GitHub. Don't write via NAPSAC if PACK sync is active — PACK will overwrite on next sync.
 
 ## Project structure
 
 ```
 ├── .claude-plugin/
-│   └── plugin.json           # Plugin metadata
-├── .claude/
-│   └── settings.local.json   # Permission config for Claude Code
-├── skills/
-│   └── napsac/
-│       ├── SKILL.md           # Main skill spec (tool definitions, behavior)
-│       └── references/
-│           ├── page-structure.md     # Notion page layout conventions
-│           ├── pack-compatibility.md # PACK tool mapping and migration
-│           └── cross-tool-setup.md   # Per-tool connection guides
-├── CLAUDE.md                  # Plugin instructions for org-level install
-├── CONTRACTS.md               # Non-negotiable project invariants
-├── DESIGN.md                  # Architecture and design decisions
-└── README.md
+│   └── plugin.json             # Plugin metadata
+├── skills/napsac/
+│   ├── SKILL.md                # Tool definitions and behavior spec
+│   └── references/
+│       ├── page-structure.md   # Notion page layout conventions
+│       ├── pack-compatibility.md  # PACK tool signature mapping
+│       └── cross-tool-setup.md # Per-tool connection guides
+├── CLAUDE.md                   # Plugin instructions
+├── CONTRACTS.md                # Non-negotiable invariants
+├── DESIGN.md                   # Architecture decisions
+├── README.md                   # This file
+└── LICENSE                     # MIT
 ```
 
 ## License

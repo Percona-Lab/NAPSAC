@@ -30,6 +30,12 @@ NAPSAC stores memory as Notion sub-pages under a user-designated root page.
 It provides five tools that match PACK's signatures so system prompts work
 interchangeably between the two products.
 
+**The plugin is the authoritative implementation.** It provides validated
+naming, enforced page structure, and guaranteed index regeneration after
+every write. The system prompt approach (for ChatGPT, Cursor, Claude mobile)
+is a best-effort fallback — it relies on AI compliance with conventions,
+which varies by tool.
+
 **Tools:**
 
 1. **`memory_init`** — Set up a new memory root in Notion
@@ -63,17 +69,17 @@ Memory is organized as Notion sub-pages under a root page:
 ```
 [Memory Root Page]
 ├── _index (auto-managed, lists all files with links)
+├── _conventions (naming/formatting rules — system page)
 ├── contacts/
-│   └── key-people
+│   └── contacts/key-people
 ├── context/
-│   ├── general
-│   ├── preferences
-│   └── projects-overview
+│   ├── context/general
+│   └── context/preferences
 ├── profiles/
-│   └── mynah-styles
+│   └── profiles/mynah-styles
 └── projects/
-    ├── project-alpha
-    └── project-beta
+    ├── projects/project-alpha
+    └── projects/project-beta
 ```
 
 **Conventions:**
@@ -82,6 +88,8 @@ Memory is organized as Notion sub-pages under a root page:
 - "Leaf pages" contain actual memory content. Their title is the full
   file path (e.g., `context/preferences`).
 - The `_index` page is auto-generated on every `memory_update`.
+- The `_conventions` page is created once during `memory_init` and never
+  modified during normal operations. It is a system page.
 - Page titles use the file path as the identifier for easy lookup.
 
 ---
@@ -97,10 +105,11 @@ Memory is organized as Notion sub-pages under a root page:
 
 **Behavior:**
 1. Validate that the Notion connector is available. If not, return:
-   `"Notion connector is not connected. Enable it in your AI tool's settings to use NAPSAC memory."`
+   `"Notion connector is not connected. Enable it in Settings → Connectors → Notion to use NAPSAC memory."`
 2. Fetch the provided page to confirm it exists and is accessible.
-3. Create two child pages under the root:
+3. Create three child pages under the root:
    - `_index` — Empty index page (will be populated on first update)
+   - `_conventions` — Naming and formatting rules (see _conventions content below)
    - `context/general` — Starter memory file with content:
      ```
      ## General Context
@@ -109,10 +118,47 @@ Memory is organized as Notion sub-pages under a root page:
 
      *Created by NAPSAC on [date].*
      ```
-4. Store the root page ID internally for subsequent calls. When running
-   as a Claude plugin, persist this in the plugin's config. When running
-   via system prompt only, include the root page ID in the prompt.
-5. Return confirmation with the root page URL.
+4. Create the `context/` directory page as a container.
+5. Store the root page ID internally for subsequent calls.
+6. Return confirmation with the root page URL.
+
+**_conventions page content:**
+
+```
+# NAPSAC Memory Conventions
+
+This page defines how memory is structured, named, and formatted.
+Every AI tool reading this memory must follow these rules.
+
+## Page Naming
+- Leaf pages use full paths as titles: context/preferences, projects/alpha
+- Directory pages use trailing slash: context/, projects/
+- No file extensions (Notion pages don't have them)
+- _index and _conventions are system pages -- never delete or rename
+
+## Directory Taxonomy
+- context/ -- Stable background: role, preferences, tooling
+- projects/ -- Active and archived project memory
+- profiles/ -- Style/format profiles (MYNAH, BINER)
+- contacts/ -- People, accounts, org references
+- New directories can be created freely
+
+## Content Format
+- Write as native Notion blocks, not raw markdown
+- Headings, bullets, code blocks, quotes use native block types
+- Pages must be readable in Notion UI without cleanup
+
+## Index (_index)
+- Regenerated after every memory write
+- Lists all files with: path, description, tags, last updated
+- Target: ~700 tokens for ~25 files
+- If _index drifts, the next write auto-corrects it
+
+## Profiles
+- MYNAH: profiles/mynah-{context-id} (schema matches PACK)
+- BINER: profiles/notion-design (schema matches PACK)
+- Profiles are portable between PACK and NAPSAC
+```
 
 **Error handling:**
 - If the page URL/ID is invalid or not found: return a clear error with
@@ -163,9 +209,13 @@ Target: ~700 tokens for ~25 files.
 **Behavior:**
 1. If `path` is provided:
    a. Search for a child page under the root whose title matches the path.
-   b. Fetch the page content.
-   c. Convert Notion blocks to clean readable text.
-   d. Return the content.
+   b. **Path resolution:** If no exact match, attempt fuzzy resolution:
+      - If `path` has no `/`, search for `context/{path}`, `projects/{path}`,
+        etc. If exactly one match is found, use it. If multiple matches,
+        return an error listing the ambiguous options.
+   c. Fetch the page content.
+   d. Convert Notion blocks to clean readable text.
+   e. Return the content.
 2. If `path` is omitted or `all` is true:
    a. Read the `_index` page.
    b. Fetch all linked pages.
@@ -195,30 +245,39 @@ page_id:     string — Notion page ID (used for subsequent updates)
 - `message` (optional) — Description of the change (stored in page history)
 
 **Behavior:**
-1. Search for an existing page under the root whose title matches `path`.
-2. **If page exists:**
+1. **Validate the path:**
+   a. Must contain a `/` (e.g., `context/preferences`, not just `preferences`).
+      If no `/`, check if the user means `context/{path}`. If ambiguous, ask.
+   b. Must not start with `_` (reserved for system pages).
+   c. Must not contain file extensions (`.md`, `.txt`, etc.).
+   d. Must use lowercase with hyphens for word separation.
+2. Search for an existing page under the root whose title matches `path`.
+3. **If page exists:**
    a. Replace the page content with the new content.
    b. Convert markdown to proper Notion blocks (headings, bullets, code
       blocks, etc.) — not raw markdown dumped into the page.
-3. **If page does not exist:**
+4. **If page does not exist:**
    a. Determine the directory from the path (e.g., `context/` from
       `context/preferences`).
    b. Find or create the directory page under the root.
    c. Create a new child page with the path as its title.
    d. Write the content as Notion blocks.
-4. **After write, regenerate the `_index` page:**
-   a. List all child pages under the root (excluding `_index` itself).
+5. **After write, ALWAYS regenerate the `_index` page:**
+   a. List all child pages under the root (excluding `_index`, `_conventions`,
+      and directory pages).
    b. For each page, extract: path (title), description (first line),
       tags (if present), last edited timestamp, page link.
-   c. Format as a lightweight table/list.
+   c. Group by directory and format as a table.
    d. Replace the `_index` page content.
-5. Return confirmation with the page ID and path.
+   e. This step is MANDATORY. It must not be skipped, deferred, or made
+      conditional. Every successful write triggers an index regeneration.
+6. Return confirmation with the page ID and path.
 
 **Output:**
 ```
 path:          string — the file path written
 page_id:       string — Notion page ID
-index_updated: boolean — confirms index was regenerated
+index_updated: boolean — confirms index was regenerated (always true)
 ```
 
 **Content conversion rules:**
@@ -234,9 +293,13 @@ index_updated: boolean — confirms index was regenerated
 
 **Error handling:**
 - If Notion write fails, retry with exponential backoff (1s, 2s, 4s).
-  After 3 attempts, return error. Never lose a write silently.
+  After 3 attempts, return error: `"Failed to write to Notion after 3
+  attempts. Your content was not lost — try memory_update again."`
+  Never lose a write silently.
 - If `path` is omitted: route to `context/general` with a deprecation
   warning (v1 compat, matches PACK behavior).
+- If `_index` regeneration fails after a successful write: log a warning
+  but do NOT fail the write. The index will self-correct on next write.
 
 ---
 
@@ -288,14 +351,12 @@ Files: 12
 |------|-------------|------|---------|
 | context/general | General context and preferences | general | 2026-03-14 |
 | context/preferences | Communication and tool preferences | preferences, tools | 2026-03-12 |
-| context/projects-overview | Active projects summary | projects | 2026-03-13 |
 
 ## projects/
 
 | File | Description | Tags | Updated |
 |------|-------------|------|---------|
 | projects/project-alpha | Alpha project tracking | alpha, q2-2026 | 2026-03-14 |
-| projects/project-beta | Beta project notes | beta, planning | 2026-03-10 |
 
 ## profiles/
 
@@ -365,40 +426,15 @@ formats, profiles are portable between the two systems:
 
 ## Cross-Tool System Prompts
 
-### For Claude (Cowork, Claude Code, Desktop, Mobile, Web)
+### For Cowork and Claude Code (Plugin)
 
-When NAPSAC plugin is installed (Cowork/Claude Code), the tools are
-available directly. For other Claude clients, include this system prompt:
+When the NAPSAC plugin is installed, the tools are available directly.
+No system prompt is needed for memory operations — the plugin handles
+validation, naming enforcement, and index regeneration automatically.
+
+Add this to project instructions for MYNAH/BINER integration:
 
 ```
-CRITICAL -- MANDATORY FIRST STEP: Before responding to ANY user message,
-you MUST attempt memory access in this exact order. Do NOT respond until
-you have tried.
-
-1. NAPSAC plugin (Cowork/Claude Code): Call memory_list first, then
-   memory_get on context/preferences.
-2. Notion fallback (mobile, web, or plugin unavailable): If NAPSAC tools
-   fail or are not available, fetch the memory index from Notion page
-   [MEMORY_ROOT_PAGE_ID]. Read specific files from linked sub-pages as
-   needed.
-3. Native memory fallback (Notion also unavailable): ONLY if both NAPSAC
-   and Notion fail, fall back to Claude's built-in memory. State clearly
-   at the start of your response: "Working from native memory only --
-   context may be incomplete."
-
-Do NOT skip to native memory out of convenience. Do NOT respond before
-attempting steps 1 and 2. Try each level in order and move to the next
-ONLY on failure.
-
-You have access to persistent memory via NAPSAC (memory_list / memory_get /
-memory_update / memory_search).
-- Call memory_get with a file path to read specific context
-- Call memory_update with a file path and content to save information --
-  this is the user's personal memory and they decide what goes in it
-- Call memory_search with keywords to find information across all memory
-  files
-- Each file is independent -- no need to merge with other files when
-  updating
 When drafting any communication on my behalf, use memory_search to find
 MYNAH profile files. If present, match my writing style for the relevant
 context.
@@ -406,26 +442,58 @@ When creating or formatting Notion pages, use memory_search to find
 NOTION Design Profile files. If present, apply my stored design preferences.
 ```
 
+### For Claude (Mobile, Desktop, Web) — System Prompt Fallback
+
+When the plugin is not available, include this system prompt:
+
+```
+CRITICAL -- MANDATORY FIRST STEP: Before responding to ANY user message,
+you MUST attempt memory access. Do NOT respond until you have tried.
+
+1. Fetch the memory index from Notion page [MEMORY_ROOT_PAGE_URL]. Look
+   for the _index sub-page and read it.
+2. Read the _conventions sub-page. Follow its rules for naming, formatting,
+   and structuring all memory pages.
+3. Read context/preferences from the linked sub-pages.
+4. If Notion is unavailable, fall back to Claude's built-in memory. State
+   clearly: "Working from native memory only -- context may be incomplete."
+
+Do NOT skip memory loading out of convenience. Try Notion first, always.
+
+You have access to persistent memory stored as Notion sub-pages under the
+memory root.
+- At session start, read the _index page to see all available memory files
+- ALWAYS read _conventions before writing any memory -- it defines naming,
+  structure, and format rules
+- To read specific context, fetch the relevant sub-page by following links
+  in the index
+- To save information, update the relevant sub-page or create a new one
+  under the appropriate directory -- this is the user's personal memory and
+  they decide what goes in it
+- After every write, regenerate the _index page to reflect the current state
+- To search memory, search across all sub-pages under the memory root
+- Each sub-page is an independent memory file -- update them individually,
+  no need to merge
+
+When drafting any communication on my behalf, search memory for MYNAH
+profile files (under profiles/). If present, match my writing style for
+the relevant context (Slack DM, email, channel post, etc.).
+
+When creating or formatting Notion pages, search memory for BINER/Notion
+Design Profile files (under profiles/). If present, apply my stored design
+preferences instead of default formatting.
+```
+
 ### For ChatGPT Pro (via Notion MCP)
 
-Connect Notion MCP in ChatGPT settings, then use this system prompt:
-
-```
-You have access to persistent memory stored in Notion via NAPSAC.
-- At the start of every conversation, search Notion for the memory index
-  page and read it
-- To read specific context, follow the links in the index to the relevant
-  sub-page
-- To save information, update the relevant sub-page or create a new one
-  under the appropriate directory
-- To search memory, search across all sub-pages under the memory root
-- Each sub-page is an independent memory file -- update them individually
-```
+Connect Notion MCP in ChatGPT settings, then use the same system prompt
+as Claude above. These tools access Notion via Notion MCP instead of a
+native connector, but the memory structure and behavior are identical.
 
 ### For Cursor / VS Code (via Notion MCP)
 
 Add Notion MCP server in settings, then use the same system prompt as
-ChatGPT above.
+Claude above.
 
 ### For Gemini
 
@@ -444,12 +512,15 @@ All errors return clear, actionable messages:
 
 | Condition | Message |
 |-----------|---------|
-| Notion connector unavailable | "Notion connector is not connected. Enable it in your AI tool's settings to use NAPSAC memory." |
+| Notion connector unavailable | "Notion connector is not connected. Enable it in Settings → Connectors → Notion to use NAPSAC memory." |
 | Root page not set | "Memory root not configured. Run memory_init with a Notion page URL to get started." |
 | Root page not found | "Memory root page not found. The page may have been deleted or moved. Run memory_init with a new page URL." |
 | File not found (memory_get) | "Memory file not found: [path]. Available files can be seen with memory_list." |
+| Invalid path (memory_update) | "Invalid path: [path]. Paths must include a directory (e.g., context/preferences, not just preferences)." |
+| Path has extension | "Invalid path: [path]. Notion pages don't use file extensions. Use [path without extension] instead." |
 | Notion API rate limit | Retry with exponential backoff (1s, 2s, 4s). After 3 attempts: "Notion API rate limit reached. Try again in a few seconds." |
-| Write failure | Retry with exponential backoff. After 3 attempts: "Failed to write to Notion after 3 attempts. Your content was not lost -- try memory_update again." |
+| Write failure | Retry with exponential backoff. After 3 attempts: "Failed to write to Notion after 3 attempts. Your content was not lost — try memory_update again." |
+| Index regen failure | Log warning. Do not fail the write. Index self-corrects on next write. |
 
 Never fail silently. Never lose a write without telling the user.
 

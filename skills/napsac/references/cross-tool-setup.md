@@ -13,15 +13,17 @@ Because memory lives in Notion, any AI tool with Notion access can use it.
 2. Share the memory root page with Claude's integration
 3. Add the NAPSAC system prompt to your project instructions
 
-### Claude Code / Cowork
+### Claude Code / Cowork (Recommended)
 
 **Connection:** NAPSAC plugin + native Notion connector
-**Access:** Full read/write via plugin tools
+**Access:** Full read/write via plugin tools with validation
 **Setup:**
-1. Install the NAPSAC plugin
+1. Install the NAPSAC plugin: `Install this plugin: https://github.com/Percona-Lab/NAPSAC`
 2. Connect Notion in settings
 3. Run `memory_init` with your Notion page URL
-4. System prompt is handled by the plugin automatically
+4. The plugin handles validation, naming enforcement, and index regeneration automatically
+
+**Why this is the recommended path:** The plugin validates path naming, enforces page structure, and guarantees index regeneration after every write. The system prompt approach relies on AI compliance, which varies by tool.
 
 ### ChatGPT Pro
 

@@ -24,6 +24,12 @@ NAPSAC provides five tools that use Claude's native Notion connector for all rea
 
 All tool logic is defined in `skills/napsac/SKILL.md`. There is no server, no compiled code, no runtime. The plugin is a behavior specification that Claude follows using existing Notion MCP tools.
 
+The plugin provides validation that the system prompt alone cannot:
+- Path naming enforcement (must include directory, no extensions, lowercase)
+- Guaranteed index regeneration after every write
+- `_conventions` page protection (never modified during normal operations)
+- Structured error handling with retries
+
 ## Required connectors
 
 - **Notion** — Must be connected via Settings > Connectors > Notion. All memory operations go through the Notion API.

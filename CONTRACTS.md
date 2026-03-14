@@ -42,11 +42,13 @@ All reads and writes go through Notion. No other storage system.
 
 ## C5: Index Consistency
 
-The `_index` page is regenerated on every `memory_update`.
+The `_index` page is regenerated on every `memory_update`. This is mandatory, not optional.
 
+- Every successful `memory_update` triggers index regeneration. No exceptions.
 - If `_index` drifts from actual page state (e.g., manual edits in Notion), the next `memory_update` auto-corrects it.
 - `_index` lists every memory page under the root with path, description, and timestamp.
 - `_index` is lightweight enough to load at session start (~700 tokens for ~25 files).
+- If index regeneration fails after a successful write, the write still succeeds. Index self-corrects on next write.
 
 ## C6: The User Owns Their Memory
 
@@ -68,9 +70,10 @@ Memory content is written as structured Notion blocks, not raw markdown dumped i
 
 Every error returns an actionable message. No stack traces, no cryptic codes.
 
-- Notion connector unavailable → "Enable it in your AI tool's settings"
+- Notion connector unavailable → "Enable it in Settings → Connectors → Notion"
 - Root page not set → "Run memory_init with a Notion page URL"
 - File not found → Show the path that was requested
+- Invalid path → Explain what's wrong and suggest the correct format
 - Write failure → "Your content was not lost — try memory_update again"
 - Never fail silently. Never return an empty response on error.
 
@@ -82,3 +85,22 @@ Profile storage format matches PACK exactly.
 - BINER profiles stored at `profiles/notion-design` use the same schema as PACK.
 - A profile trained via PACK works in NAPSAC without modification.
 - A profile trained via NAPSAC works in PACK without modification.
+
+## C10: Page Naming Enforcement
+
+Page titles always use full file paths. The plugin validates this on every write.
+
+- Leaf pages must include a directory prefix (`context/preferences`, not `preferences`).
+- No file extensions (`.md`, `.txt`). Notion pages don't have extensions.
+- No `_` prefix for user pages (reserved for `_index` and `_conventions`).
+- Lowercase with hyphens for word separation.
+- The plugin rejects writes that violate these rules with a clear error message.
+
+## C11: _conventions is Never Modified During Normal Operations
+
+The `_conventions` page is created once during `memory_init` and never touched again.
+
+- `memory_update` must never target `_conventions`.
+- The plugin must reject any attempt to write to `_conventions` with a clear error.
+- Users can edit `_conventions` manually in Notion if they want to customize rules.
+- The plugin does not read `_conventions` at runtime — it validates directly. `_conventions` exists for non-plugin environments and human reference.

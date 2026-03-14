@@ -13,6 +13,8 @@ NAPSAC is a Claude plugin that provides persistent AI memory using Notion as the
 
 NAPSAC exposes five tools (`memory_init`, `memory_list`, `memory_get`, `memory_update`, `memory_search`) that match PACK's signatures so system prompts work interchangeably between the two products. Unlike PACK, NAPSAC requires zero infrastructure: no GitHub repo, no MCP server, no API tokens, no config files, no local install.
 
+The plugin is the authoritative implementation, providing validated naming, enforced page structure, and guaranteed index regeneration. A system prompt fallback serves tools where the plugin isn't available (Claude mobile, ChatGPT, Cursor, VS Code).
+
 ---
 
 ## Why Notion as Backend
@@ -49,8 +51,8 @@ Notion solves this because:
 
 NAPSAC and PACK serve different user profiles:
 
-- **NAPSAC user:** Uses Claude or ChatGPT daily. Wants memory to "just work" across devices. Doesn't use terminals. Values simplicity over control.
-- **PACK user:** Needs git history and CLI. Uses multiple MCP clients. Wants complete control over storage. Values auditability over convenience.
+- **NAPSAC user:** Non-developers who use Cowork as their primary AI environment. PMs, marketers, founders, ops people. Wants memory to "just work" across devices. Values simplicity over control.
+- **PACK user:** Developers who use Claude Code, Cursor, Windsurf, Open WebUI. Needs git history and CLI. Wants complete control over storage. Values auditability over convenience.
 - **Both:** Power user who wants PACK's git history and CLI for serious work, but also wants mobile access. Runs PACK with Notion sync, uses NAPSAC's system prompt as a fallback.
 
 Neither product replaces the other. They share conventions so migration between them is seamless.
@@ -61,13 +63,30 @@ Neither product replaces the other. They share conventions so migration between 
 
 - **Zero infrastructure.** No local server, no install, no config files. If Notion is connected, it works.
 - **Portable.** Same file path conventions as PACK. Content migrates freely between the two.
-- **Plugin-first.** NAPSAC is a Claude plugin, not an MCP server. The plugin is the product.
+- **Plugin-first.** NAPSAC is a Claude plugin for Cowork and Claude Code. The plugin is the product. The system prompt is the fallback.
 - **Prompt-compatible.** System prompts work interchangeably with PACK. Swap one for the other without rewriting prompts.
 - **Notion-native.** Content is stored as proper Notion blocks, not raw markdown dumps. Pages look good in Notion.
 
 ---
 
 ## Architecture
+
+### Why a Plugin and Not an MCP Server
+
+NAPSAC's entire value proposition is zero config. An MCP server requires local install, config files, and running a process. That's PACK.
+
+A Claude plugin runs inside the session. It uses Claude's native Notion connector for auth. No tokens, no env files, nothing to install.
+
+| Consideration | Plugin | MCP Server |
+|--------------|--------|------------|
+| Installation | Claude installs from GitHub URL | `npm install`, local config |
+| Auth | Notion OAuth via Claude's connector | API tokens in env file |
+| Port conflicts | None (runs in-session) | Needs available port |
+| Mobile | Works in Cowork | Requires desktop running |
+| Cross-tool | Plugin = Cowork/Claude Code only | Works in any MCP client |
+| Validation | Behavior spec in SKILL.md | Code-level validation |
+
+The tradeoff: the plugin only works in Cowork and Claude Code. For other tools, the system prompt fallback provides the same memory access without the plugin's validation guardrails.
 
 ### Plugin Architecture
 
@@ -99,6 +118,7 @@ Neither product replaces the other. They share conventions so migration between 
                     │                     │
                     │  [Memory Root]      │
                     │  ├── _index         │
+                    │  ├── _conventions   │
                     │  ├── context/       │
                     │  ├── projects/      │
                     │  ├── profiles/      │
@@ -106,22 +126,33 @@ Neither product replaces the other. They share conventions so migration between 
                     └─────────────────────┘
 ```
 
-NAPSAC is a skill definition (SKILL.md) that instructs Claude how to use Notion MCP tools to implement memory operations. There is no server process, no compiled code, no runtime. The "plugin" is documentation that Claude follows.
+NAPSAC is a skill definition (SKILL.md) that instructs Claude how to use Notion MCP tools to implement memory operations. There is no server process, no compiled code, no runtime. The "plugin" is a behavior specification that Claude follows — but it provides real validation, naming enforcement, and guaranteed index regeneration that the system prompt alone cannot.
 
-This is fundamentally different from PACK's architecture (shared core + MCP server + connector). NAPSAC has no code to run — it's a behavior specification that Claude executes using existing Notion tools.
+### The System Prompt Fallback Model
 
-### Why a Plugin Instead of an MCP Server
+```
+┌─────────────────────────────────────────────────┐
+│            Plugin (Cowork / Claude Code)          │
+│   Validated naming, enforced structure,           │
+│   guaranteed index regen, error handling          │
+├─────────────────────────────────────────────────┤
+│       System Prompt (Claude mobile/web,           │
+│           ChatGPT, Cursor, VS Code)               │
+│   Best-effort compliance with _conventions,       │
+│   depends on AI reading and following rules        │
+├─────────────────────────────────────────────────┤
+│            Native Memory (last resort)            │
+│   No persistence. Context may be incomplete.      │
+└─────────────────────────────────────────────────┘
+```
 
-1. **No install.** Users add a plugin, not a server process. No `npm install`, no `node servers/memory.js`.
-2. **No port conflicts.** No local server means no port management.
-3. **Mobile-native.** Plugins work in Cowork. MCP servers require a desktop running.
-4. **Notion connector reuse.** Claude already has Notion access. Adding an MCP server between Claude and Notion adds latency and complexity for no benefit.
+The plugin is the reliable, validated tier. The system prompt is the cross-tool compatibility tier. Native memory is the last resort.
 
 ### How Tools Map to Notion Operations
 
 | NAPSAC Tool | Notion Operations Used |
 |-------------|----------------------|
-| `memory_init` | Create pages (index + starter content) |
+| `memory_init` | Create pages (index + conventions + starter content) |
 | `memory_list` | Fetch index page content |
 | `memory_get` | Search by title → fetch page content |
 | `memory_update` | Search by title → update or create page → regenerate index |
@@ -147,6 +178,16 @@ Each leaf page's title is its full path (e.g., `context/preferences`, not just `
 1. **Unique identification.** No ambiguity between files in different directories.
 2. **Search-friendly.** Searching for `context/preferences` in Notion returns exactly one result.
 3. **PACK compatibility.** Paths match PACK's file paths (minus the `.md` extension).
+
+### The _conventions page
+
+The `_conventions` page is the bridge between the plugin and the system prompt fallback.
+
+In plugin mode: The plugin validates naming and structure directly. `_conventions` exists as human-readable documentation.
+
+In system prompt mode: The system prompt instructs the AI to read `_conventions` before writing. This is the only mechanism that ensures naming consistency, directory structure, and content format across tools like ChatGPT and Cursor.
+
+`_conventions` is created once during `memory_init` and never modified during normal operations. It is a system page.
 
 ### Index page design
 
@@ -220,7 +261,7 @@ Notion API failures use exponential backoff: 1s, 2s, 4s. Three attempts maximum.
 
 ### Graceful degradation
 
-The three-tier fallback (plugin → Notion connector → native memory) ensures some level of context is always available. The system prompt enforces trying each level in order.
+The three-tier fallback (plugin → system prompt/Notion → native memory) ensures some level of context is always available. The system prompt enforces trying each level in order.
 
 ---
 
@@ -238,6 +279,8 @@ The three-tier fallback (plugin → Notion connector → native memory) ensures 
 | 8 | File extensions | Omitted (no `.md`) | Notion pages don't have extensions; stripped on migration from PACK |
 | 9 | Directory representation | Parent pages with `/` suffix | Natural Notion hierarchy, browseable in sidebar |
 | 10 | Version tracking | Notion page history | No infrastructure, built-in, good enough for personal memory |
+| 11 | Plugin vs system prompt | Both — plugin is authoritative, prompt is fallback | Plugin provides validation; prompt provides cross-tool reach |
+| 12 | _conventions page | Created once, never auto-modified | Human-readable docs for non-plugin environments; plugin validates directly |
 
 ---
 
